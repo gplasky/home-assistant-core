@@ -9,6 +9,7 @@ from opower import (
     InvalidAuth,
     MfaChallenge,
     MfaHandlerBase,
+    MfaRequired,
     Opower,
     create_cookie_jar,
     get_supported_utility_names,
@@ -18,7 +19,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_NAME, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.typing import VolDictType
 
@@ -91,9 +92,11 @@ class OpowerConfigFlow(ConfigFlow, domain=DOMAIN):
 
             try:
                 await _validate_login(self.hass, self._data)
-            except MfaChallenge as exc:
-                self.mfa_handler = exc.handler
-                return await self.async_step_mfa_options()
+            except (MfaChallenge, MfaRequired) as exc:
+                self.mfa_handler = getattr(exc, "handler", None)
+                if self.mfa_handler:
+                    return await self.async_step_mfa_options()
+                return await self.async_step_mfa_code()
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
             except CannotConnect:
@@ -205,17 +208,19 @@ class OpowerConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._data.update(user_input)
-        try:
-            await _validate_login(self.hass, self._data)
-        except MfaChallenge as exc:
-            self.mfa_handler = exc.handler
-            return await self.async_step_mfa_options()
-        except InvalidAuth:
-            errors["base"] = "invalid_auth"
-        except CannotConnect:
-            errors["base"] = "cannot_connect"
-        else:
-            return self.async_update_reload_and_abort(reauth_entry, data=self._data)
+            try:
+                await _validate_login(self.hass, self._data)
+            except (MfaChallenge, MfaRequired) as exc:
+                self.mfa_handler = getattr(exc, "handler", None)
+                if self.mfa_handler:
+                    return await self.async_step_mfa_options()
+                return await self.async_step_mfa_code()
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_update_reload_and_abort(reauth_entry, data=self._data)
 
         utility = select_utility(self._data[CONF_UTILITY])
         schema_dict: VolDictType = {
