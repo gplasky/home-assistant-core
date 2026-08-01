@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 from opower import AggregateType, CostRead
-from opower.exceptions import ApiException
+from opower.exceptions import ApiException, MfaRequired
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
@@ -23,6 +23,7 @@ from homeassistant.components.recorder.statistics import (
 )
 from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import EnergyConverter
@@ -508,3 +509,17 @@ async def test_coordinator_no_new_cost_reads_after_initial_load(
         get_last_statistics, hass, 1, statistic_id, True, {"sum"}
     )
     assert stats[statistic_id][0]["sum"] == 1.5
+
+
+async def test_coordinator_mfa_required(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_opower_api: AsyncMock,
+) -> None:
+    """Test the coordinator handles MfaRequired by raising ConfigEntryAuthFailed."""
+    mock_opower_api.async_login.side_effect = MfaRequired("token_123")
+    coordinator = OpowerCoordinator(hass, mock_config_entry)
+
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coordinator._async_update_data()
