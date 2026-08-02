@@ -93,7 +93,9 @@ class OpowerConfigFlow(ConfigFlow, domain=DOMAIN):
                 await _validate_login(self.hass, self._data)
             except MfaChallenge as exc:
                 self.mfa_handler = exc.handler
-                return await self.async_step_mfa_options()
+                if self.mfa_handler:
+                    return await self.async_step_mfa_options()
+                return await self.async_step_mfa_code()
             except InvalidAuth:
                 errors["base"] = "invalid_auth"
             except CannotConnect:
@@ -205,17 +207,19 @@ class OpowerConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._data.update(user_input)
-        try:
-            await _validate_login(self.hass, self._data)
-        except MfaChallenge as exc:
-            self.mfa_handler = exc.handler
-            return await self.async_step_mfa_options()
-        except InvalidAuth:
-            errors["base"] = "invalid_auth"
-        except CannotConnect:
-            errors["base"] = "cannot_connect"
-        else:
-            return self.async_update_reload_and_abort(reauth_entry, data=self._data)
+            try:
+                await _validate_login(self.hass, self._data)
+            except MfaChallenge as exc:
+                self.mfa_handler = exc.handler
+                if self.mfa_handler:
+                    return await self.async_step_mfa_options()
+                return await self.async_step_mfa_code()
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_update_reload_and_abort(reauth_entry, data=self._data)
 
         utility = select_utility(self._data[CONF_UTILITY])
         schema_dict: VolDictType = {
