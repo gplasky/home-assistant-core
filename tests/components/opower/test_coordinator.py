@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 from opower import AggregateType, CostRead
-from opower.exceptions import ApiException, MfaRequired
+from opower.exceptions import ApiException, MfaChallenge
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
@@ -511,14 +511,16 @@ async def test_coordinator_no_new_cost_reads_after_initial_load(
     assert stats[statistic_id][0]["sum"] == 1.5
 
 
-async def test_coordinator_mfa_required(
+async def test_coordinator_mfa_challenge(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
     mock_opower_api: AsyncMock,
 ) -> None:
-    """Test the coordinator handles MfaRequired by raising ConfigEntryAuthFailed."""
-    mock_opower_api.async_login.side_effect = MfaRequired("token_123")
+    """Test the coordinator handles MfaChallenge by raising ConfigEntryAuthFailed."""
+    mock_opower_api.async_login.side_effect = MfaChallenge(
+        message="", handler=AsyncMock()
+    )
     coordinator = OpowerCoordinator(hass, mock_config_entry)
 
     with pytest.raises(ConfigEntryAuthFailed):

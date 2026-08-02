@@ -9,7 +9,6 @@ from opower import (
     InvalidAuth,
     MfaChallenge,
     MfaHandlerBase,
-    MfaRequired,
     Opower,
     create_cookie_jar,
     get_supported_utility_names,
@@ -19,7 +18,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_NAME, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.typing import VolDictType
 
@@ -92,8 +91,8 @@ class OpowerConfigFlow(ConfigFlow, domain=DOMAIN):
 
             try:
                 await _validate_login(self.hass, self._data)
-            except (MfaChallenge, MfaRequired) as exc:
-                self.mfa_handler = getattr(exc, "handler", None)
+            except MfaChallenge as exc:
+                self.mfa_handler = exc.handler
                 if self.mfa_handler:
                     return await self.async_step_mfa_options()
                 return await self.async_step_mfa_code()
@@ -210,8 +209,8 @@ class OpowerConfigFlow(ConfigFlow, domain=DOMAIN):
             self._data.update(user_input)
             try:
                 await _validate_login(self.hass, self._data)
-            except (MfaChallenge, MfaRequired) as exc:
-                self.mfa_handler = getattr(exc, "handler", None)
+            except MfaChallenge as exc:
+                self.mfa_handler = exc.handler
                 if self.mfa_handler:
                     return await self.async_step_mfa_options()
                 return await self.async_step_mfa_code()
