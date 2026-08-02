@@ -96,7 +96,6 @@ class OpowerCoordinator(DataUpdateCoordinator[dict[str, OpowerData]]):
             config_entry.data.get(CONF_LOGIN_DATA),
             mfa_code=config_entry.data.get(CONF_MFA_CODE),
         )
-        )
 
         @callback
         def _dummy_listener() -> None:
